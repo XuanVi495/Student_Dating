@@ -12,6 +12,11 @@ import {
   type VerificationReviewedEvent,
 } from '../../shared/events/user.events.js';
 import {
+  reportEventBus,
+  type ReportReviewedEvent,
+  type ReportSubmittedEvent,
+} from '../../shared/events/report.events.js';
+import {
   notificationService,
   type NotificationService,
 } from './notification.service.js';
@@ -19,7 +24,8 @@ import {
 type NotificationListenerService = Pick<
   NotificationService,
   'notifyMatchCreated' | 'notifyMatchCancelled' | 'notifyVerificationReviewed'
->;
+> &
+  Partial<Pick<NotificationService, 'notifyVerificationSubmitted'>>;
 
 type ErrorReporter = (eventName: string, payload: unknown, error: unknown) => void;
 
@@ -96,17 +102,62 @@ export function registerNotificationListener(
     }
   );
 
+  const unsubscribeVerificationSubmitted = userBus.subscribe(
+    'user.verification-submitted',
+    (event) => {
+      if (!service.notifyVerificationSubmitted) return;
+      void service.notifyVerificationSubmitted(event.userId).catch((error: unknown) => {
+        reportError('user.verification-submitted', event, error);
+      });
+    }
+  );
+
   return () => {
     unsubscribeCreated();
     unsubscribeVerification();
+    unsubscribeVerificationSubmitted();
+  };
+}
+
+export function registerReportNotificationListener(
+  reportBus = reportEventBus,
+  service: Pick<
+    NotificationService,
+    'notifyReportSubmitted' | 'notifyReportReviewed'
+  > = notificationService
+): () => void {
+  const unsubscribeSubmitted = reportBus.subscribe(
+    'report.submitted',
+    (event: ReportSubmittedEvent) => {
+      void service.notifyReportSubmitted(event.reporterId).catch((error: unknown) => {
+        defaultReportError('report.submitted', event, error);
+      });
+    }
+  );
+  const unsubscribeReviewed = reportBus.subscribe(
+    'report.reviewed',
+    (event: ReportReviewedEvent) => {
+      void service.notifyReportReviewed(event.reporterId, event.status).catch(
+        (error: unknown) => {
+          defaultReportError('report.reviewed', event, error);
+        }
+      );
+    }
+  );
+
+  return () => {
+    unsubscribeSubmitted();
+    unsubscribeReviewed();
   };
 }
 
 let unregisterNotificationListener: (() => void) | undefined;
+let unregisterReportNotificationListener: (() => void) | undefined;
 
 export function initializeNotificationModule(): void {
   if (unregisterNotificationListener) {
     return;
   }
   unregisterNotificationListener = registerNotificationListener();
+  unregisterReportNotificationListener = registerReportNotificationListener();
 }

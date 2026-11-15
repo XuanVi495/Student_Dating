@@ -7,8 +7,13 @@ export interface VerificationReviewedEvent {
   rejectionReason?: string;
 }
 
+export interface VerificationSubmittedEvent {
+  userId: string;
+}
+
 export interface UserEvents {
   'user.verification-reviewed': VerificationReviewedEvent;
+  'user.verification-submitted': VerificationSubmittedEvent;
 }
 
 export const userEventBus = new EventBus<UserEvents>();

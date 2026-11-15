@@ -1,9 +1,22 @@
 import {
   UserRole,
   VerificationStatus,
+  type Prisma,
   type PrismaClient,
 } from '@prisma/client';
 import { prisma } from '../../database/prisma.js';
+
+export interface VerificationRecord {
+  studentId: string;
+  studentNumber: string | null;
+  universityName: string | null;
+  cardStoragePath: string | null;
+  status: VerificationStatus;
+  reviewerId: string | null;
+  rejectionReason: string | null;
+  submittedAt: Date | null;
+  reviewedAt: Date | null;
+}
 
 export interface UserRepository {
   studentExists(userId: string): Promise<boolean>;
@@ -17,6 +30,12 @@ export interface UserRepository {
     updatedAt: Date;
   }>;
   getVerificationStatus(userId: string): Promise<VerificationStatus | undefined>;
+  getVerification(userId: string): Promise<VerificationRecord | undefined>;
+  listPendingVerifications(): Promise<readonly VerificationRecord[]>;
+  submitVerification(
+    userId: string,
+    cardStoragePath: string
+  ): Promise<VerificationRecord | undefined>;
   reviewVerification(
     userId: string,
     reviewerId: string,
@@ -34,6 +53,18 @@ export interface UserRepository {
 export function createUserRepository(
   client: PrismaClient = prisma
 ): UserRepository {
+  const verificationSelect = {
+    studentId: true,
+    studentNumber: true,
+    universityName: true,
+    cardStoragePath: true,
+    status: true,
+    reviewerId: true,
+    rejectionReason: true,
+    submittedAt: true,
+    reviewedAt: true,
+  } satisfies Prisma.VerificationSelect;
+
   return {
     async studentExists(userId) {
       
@@ -67,6 +98,47 @@ export function createUserRepository(
         select: { status: true },
       });
       return verification?.status;
+    },
+
+    async getVerification(userId) {
+      return (await client.verification.findUnique({
+        where: { studentId: userId },
+        select: verificationSelect,
+      })) ?? undefined;
+    },
+
+    async listPendingVerifications() {
+      return client.verification.findMany({
+        where: { status: VerificationStatus.CHO_DUYET },
+        orderBy: [{ submittedAt: 'asc' }, { studentId: 'asc' }],
+        select: verificationSelect,
+      });
+    },
+
+    async submitVerification(userId, cardStoragePath) {
+      const result = await client.verification.updateMany({
+        where: {
+          studentId: userId,
+          status: {
+            in: [VerificationStatus.CHUA_XAC_THUC, VerificationStatus.TU_CHOI],
+          },
+        },
+        data: {
+          cardStoragePath,
+          status: VerificationStatus.CHO_DUYET,
+          reviewerId: null,
+          rejectionReason: null,
+          submittedAt: new Date(),
+          reviewedAt: null,
+        },
+      });
+
+      if (result.count === 0) return undefined;
+
+      return (await client.verification.findUnique({
+        where: { studentId: userId },
+        select: verificationSelect,
+      })) ?? undefined;
     },
 
     async reviewVerification(userId, reviewerId, status, rejectionReason) {
