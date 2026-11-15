@@ -9,8 +9,6 @@
     "prisma:validate": "prisma validate",
     "prisma:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seeding/interests.ts",
-    "db:seed:profiles": "node --env-file=.env --import tsx prisma/seeding/profiles.ts",
     "prisma:studio": "prisma studio"
   },
   "name": "student_dating",

@@ -109,6 +109,16 @@ export function formatNotificationText(
           title: 'Student Verification Submitted',
           body: 'Your student verification is waiting for moderator review.',
         };
+      case 'BAO_CAO_TIEP_NHAN':
+        return {
+          title: 'Report Received',
+          body: 'Your report has been received and is waiting for moderator review.',
+        };
+      case 'BAO_CAO_CAP_NHAT':
+        return {
+          title: 'Report Status Updated',
+          body: 'The status of your report has been updated.',
+        };
     }
   }
 
@@ -147,6 +157,16 @@ export function formatNotificationText(
       return {
         title: 'Đã gửi yêu cầu xác thực',
         body: 'Yêu cầu xác thực thẻ sinh viên của bạn đang chờ kiểm duyệt.',
+      };
+    case 'BAO_CAO_TIEP_NHAN':
+      return {
+        title: 'Đã tiếp nhận báo cáo',
+        body: 'Báo cáo của bạn đã được tiếp nhận và đang chờ kiểm duyệt.',
+      };
+    case 'BAO_CAO_CAP_NHAT':
+      return {
+        title: 'Cập nhật báo cáo',
+        body: 'Trạng thái báo cáo của bạn đã được cập nhật.',
       };
   }
 }
