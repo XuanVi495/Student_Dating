@@ -11,10 +11,11 @@
 2. [Error Format](#error-format)
 3. [Utility Endpoints](#utility-endpoints)
 4. [Profile Endpoints](#profile-endpoints)
-5. [Chat Endpoints](#chat-endpoints)
-6. [Notification Endpoints](#notification-endpoints)
-7. [User Endpoints](#user-endpoints)
-8. [Enum Reference](#enum-reference)
+5. [Media Endpoints](#media-endpoints)
+6. [Chat Endpoints](#chat-endpoints)
+7. [Notification Endpoints](#notification-endpoints)
+8. [User Endpoints](#user-endpoints)
+9. [Enum Reference](#enum-reference)
 
 ---
 
@@ -389,6 +390,35 @@ List all globally available, active interest tags.
 ```
 
 ---
+
+## Media Endpoints
+
+All `/api/media` endpoints require `Authorization: Bearer <token>`. Media uploads use the private Supabase Storage bucket `media`; files are limited to 5 MB and `image/jpeg`, `image/png`, or `image/webp`.
+
+### `POST /api/media/upload-url`
+
+Request a one-time signed upload URL. The server generates a unique object path under the authenticated user's ID; clients cannot choose the bucket or path.
+
+**Request:**
+```json
+{ "contentType": "image/webp" }
+```
+
+**Response `200`:**
+```json
+{
+  "status": "success",
+  "data": {
+    "bucket": "media",
+    "path": "<authenticated-user-id>/<generated-id>.webp",
+    "signedUrl": "https://<project>.supabase.co/storage/v1/object/upload/sign/...",
+    "token": "<signed-upload-token>",
+    "expiresInSeconds": 7200
+  }
+}
+```
+
+Upload directly from the client with `supabase.storage.from(bucket).uploadToSignedUrl(path, token, file, { contentType })`.
 
 ## Chat Endpoints
 
