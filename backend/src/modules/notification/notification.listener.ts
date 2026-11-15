@@ -19,7 +19,8 @@ import {
 type NotificationListenerService = Pick<
   NotificationService,
   'notifyMatchCreated' | 'notifyMatchCancelled' | 'notifyVerificationReviewed'
->;
+> &
+  Partial<Pick<NotificationService, 'notifyVerificationSubmitted'>>;
 
 type ErrorReporter = (eventName: string, payload: unknown, error: unknown) => void;
 
@@ -96,9 +97,20 @@ export function registerNotificationListener(
     }
   );
 
+  const unsubscribeVerificationSubmitted = userBus.subscribe(
+    'user.verification-submitted',
+    (event) => {
+      if (!service.notifyVerificationSubmitted) return;
+      void service.notifyVerificationSubmitted(event.userId).catch((error: unknown) => {
+        reportError('user.verification-submitted', event, error);
+      });
+    }
+  );
+
   return () => {
     unsubscribeCreated();
     unsubscribeVerification();
+    unsubscribeVerificationSubmitted();
   };
 }
 

@@ -7,6 +7,18 @@ import * as UserController from './user.controller.js';
 const router = Router();
 
 router.use(authenticate);
+router.get('/verification', UserController.getVerification);
+router.post('/verification', UserController.submitVerification);
+router.get(
+  '/verification/pending',
+  requireRole(UserRole.MODERATOR, UserRole.ADMIN),
+  UserController.listPendingVerifications
+);
+router.get(
+  '/:userId/verification',
+  requireRole(UserRole.MODERATOR, UserRole.ADMIN),
+  UserController.getVerificationForUser
+);
 router.put('/:userId/role', requireRole(UserRole.ADMIN), UserController.assignRole);
 router.put(
   '/:userId/verification/approve',

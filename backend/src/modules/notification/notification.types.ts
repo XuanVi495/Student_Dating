@@ -104,6 +104,11 @@ export function formatNotificationText(
           title: 'Student Verification Rejected',
           body: 'Your student verification was rejected. Please review requirements and try again.',
         };
+      case 'XAC_THUC_CHO_DUYET':
+        return {
+          title: 'Student Verification Submitted',
+          body: 'Your student verification is waiting for moderator review.',
+        };
     }
   }
 
@@ -137,6 +142,11 @@ export function formatNotificationText(
       return {
         title: 'Xác thực bị từ chối',
         body: 'Yêu cầu xác thực thẻ sinh viên của bạn đã bị từ chối.',
+      };
+    case 'XAC_THUC_CHO_DUYET':
+      return {
+        title: 'Đã gửi yêu cầu xác thực',
+        body: 'Yêu cầu xác thực thẻ sinh viên của bạn đang chờ kiểm duyệt.',
       };
   }
 }

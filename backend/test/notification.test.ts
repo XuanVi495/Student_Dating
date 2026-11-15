@@ -61,6 +61,7 @@ describe('Notification Module & Schema Contracts', () => {
     assert.equal(NotificationType.GHEP_DOI, 'GHEP_DOI');
     assert.equal(NotificationType.HUY_GHEP_DOI, 'HUY_GHEP_DOI');
     assert.equal(NotificationType.TIN_NHAN_MOI, 'TIN_NHAN_MOI');
+    assert.equal(NotificationType.XAC_THUC_CHO_DUYET, 'XAC_THUC_CHO_DUYET');
     assert.equal(NotificationType.XAC_THUC_DUYET, 'XAC_THUC_DUYET');
     assert.equal(NotificationType.XAC_THUC_TU_CHOI, 'XAC_THUC_TU_CHOI');
   });
@@ -286,7 +287,7 @@ describe('Notification Service', () => {
     );
   });
 
-  it('dispatches notifyMatchCreated, notifyMatchCancelled, notifyVerificationReviewed', async () => {
+  it('dispatches match and verification notification events', async () => {
     let lastCreatedInput: any;
     const service = createNotificationService({
       ...createRepoStub(),
@@ -310,6 +311,10 @@ describe('Notification Service', () => {
     await service.notifyVerificationReviewed(studentId, 'TU_CHOI', 'Thẻ mờ');
     assert.equal(lastCreatedInput.type, NotificationType.XAC_THUC_TU_CHOI);
     assert.equal(lastCreatedInput.metadata.rejectionReason, 'Thẻ mờ');
+
+    await service.notifyVerificationSubmitted(studentId);
+    assert.equal(lastCreatedInput.type, NotificationType.XAC_THUC_CHO_DUYET);
+    assert.deepEqual(lastCreatedInput.recipientIds, [studentId]);
   });
 });
 

@@ -76,6 +76,7 @@ export interface NotificationService {
     status: 'DA_XAC_THUC' | 'TU_CHOI',
     rejectionReason?: string
   ): Promise<string>;
+  notifyVerificationSubmitted(studentId: string): Promise<string>;
   notifyNewMessage(
     conversationId: string,
     senderId: string,
@@ -217,6 +218,13 @@ export function createNotificationService(
     });
   }
 
+  async function notifyVerificationSubmitted(studentId: string): Promise<string> {
+    return createNotification({
+      type: NotificationType.XAC_THUC_CHO_DUYET,
+      recipientIds: [studentId],
+    });
+  }
+
   async function notifyNewMessage(
     conversationId: string,
     senderId: string,
@@ -240,6 +248,7 @@ export function createNotificationService(
     notifyMatchCreated,
     notifyMatchCancelled,
     notifyVerificationReviewed,
+    notifyVerificationSubmitted,
     notifyNewMessage,
   };
 }
