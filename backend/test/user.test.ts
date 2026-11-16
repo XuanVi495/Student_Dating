@@ -10,6 +10,7 @@ import {
 import {
   AssignRoleSchema,
   RejectVerificationSchema,
+  SubmitVerificationSchema,
   UserIdParamsSchema,
 } from '../src/modules/user/user.schemas.js';
 import type {
@@ -19,6 +20,17 @@ import { captureInfoLogs } from './helpers/capture-logger.js';
 
 function createRepository(overrides: Partial<UserRepository> = {}) {
   const calls: string[] = [];
+  const verification = {
+    studentId: 'student-id',
+    studentNumber: 'SV001',
+    universityName: 'Test University',
+    cardStoragePath: 'https://cdn.example.com/card.jpg',
+    status: VerificationStatus.CHO_DUYET,
+    reviewerId: null,
+    rejectionReason: null,
+    submittedAt: new Date('2026-01-01T00:00:00.000Z'),
+    reviewedAt: null,
+  };
   const repository: UserRepository = {
     async studentExists(userId) {
       calls.push(`student:${userId}`);
@@ -36,6 +48,23 @@ function createRepository(overrides: Partial<UserRepository> = {}) {
       calls.push(`verification-status:${userId}`);
       return VerificationStatus.CHO_DUYET;
     },
+    async getVerification(userId) {
+      calls.push(`verification:${userId}`);
+      return { ...verification, studentId: userId };
+    },
+    async listPendingVerifications() {
+      calls.push('verification-pending');
+      return [verification];
+    },
+    async submitVerification(userId, cardStoragePath) {
+      calls.push(`submit:${userId}:${cardStoragePath}`);
+      return {
+        ...verification,
+        studentId: userId,
+        cardStoragePath,
+        status: VerificationStatus.CHO_DUYET,
+      };
+    },
     async reviewVerification(userId, reviewerId, status, rejectionReason) {
       calls.push(`review:${userId}:${reviewerId}:${status}:${rejectionReason ?? ''}`);
       return {
@@ -52,6 +81,64 @@ function createRepository(overrides: Partial<UserRepository> = {}) {
 }
 
 describe('User service', () => {
+  it('submits a student card URL and publishes a pending event', async () => {
+    const { repository, calls } = createRepository({
+      async getVerification() {
+        return {
+          studentId: 'student-id',
+          studentNumber: 'SV001',
+          universityName: 'Test University',
+          cardStoragePath: null,
+          status: VerificationStatus.CHUA_XAC_THUC,
+          reviewerId: null,
+          rejectionReason: null,
+          submittedAt: null,
+          reviewedAt: null,
+        };
+      },
+    });
+    const publishedEvents: UserEvents[keyof UserEvents][] = [];
+    const eventBus = new EventBus<UserEvents>();
+    eventBus.subscribe('user.verification-submitted', (event) => publishedEvents.push(event));
+    const service = createUserService(repository, eventBus);
+
+    const result = await service.submitVerification(
+      'student-id',
+      'https://cdn.example.com/card.jpg'
+    );
+
+    assert.equal(result.cardUrl, 'https://cdn.example.com/card.jpg');
+    assert.deepEqual(publishedEvents, [{ userId: 'student-id' }]);
+    assert.deepEqual(calls, [
+      'submit:student-id:https://cdn.example.com/card.jpg',
+    ]);
+  });
+
+  it('does not allow a verified student to resubmit', async () => {
+    const { repository, calls } = createRepository({
+      async getVerification() {
+        return {
+          studentId: 'student-id',
+          studentNumber: 'SV001',
+          universityName: 'Test University',
+          cardStoragePath: 'https://cdn.example.com/card.jpg',
+          status: VerificationStatus.DA_XAC_THUC,
+          reviewerId: 'moderator-id',
+          rejectionReason: null,
+          submittedAt: new Date(),
+          reviewedAt: new Date(),
+        };
+      },
+    });
+    const service = createUserService(repository);
+
+    await assert.rejects(
+      service.submitVerification('student-id', 'https://cdn.example.com/new-card.jpg'),
+      (error: unknown) => error instanceof AppError && error.statusCode === 409
+    );
+    assert.deepEqual(calls, []);
+  });
+
   it('logs role assignment with the User service source and relevant IDs', async () => {
     const { repository } = createRepository();
     const service = createUserService(repository);
@@ -227,6 +314,21 @@ describe('User request validation', () => {
     );
     assert.equal(
       RejectVerificationSchema.safeParse({ rejectionReason: '  ' }).success,
+      false
+    );
+  });
+
+  it('requires a HTTPS student-card URL', () => {
+    assert.equal(
+      SubmitVerificationSchema.safeParse({
+        cardUrl: 'https://cdn.example.com/card.jpg',
+      }).success,
+      true
+    );
+    assert.equal(
+      SubmitVerificationSchema.safeParse({
+        cardUrl: 'http://cdn.example.com/card.jpg',
+      }).success,
       false
     );
   });

@@ -1,6 +1,6 @@
 # Project Progress
 
-_Last updated: 2026-11-09_
+_Last updated: 2026-11-15_
 
 ---
 
@@ -14,7 +14,9 @@ _Last updated: 2026-11-09_
 | Matching (`src/modules/matching/`) | ✅ Complete | Match lifecycle and conversation coordination |
 | Chat (`src/modules/chat/`) | ✅ Complete | Conversations, messages, and realtime events |
 | Notification (`src/modules/notification/`) | ✅ Complete | Notification inbox and event-driven notifications |
-| User (`src/modules/user/`) | ✅ Complete | Role assignment and verification review |
+| User (`src/modules/user/`) | ✅ Complete | Student document verification, review queue, and role assignment |
+| Report (`src/modules/report/`) | ✅ Complete | Report tickets, evidence, moderation workflow, and processing history |
+| CI/CD (`.github/workflows/`) | ✅ Complete | Backend quality gates, GHCR image publishing, and Render deployment hook |
 
 ---
 
@@ -90,11 +92,16 @@ _Last updated: 2026-11-09_
 ### Implementation (`src/modules/user/`)
 - **Status: ✅ Complete**
 - Assigns ADMIN/MODERATOR roles behind authenticated ADMIN-only authorization.
-- Allows MODERATORs and ADMINs to approve or reject pending student verifications; review outcomes publish `user.verification-reviewed` for notification handling.
+- Allows students to submit HTTPS student card/CCCD image URLs and resubmit rejected verifications.
+- Allows MODERATORs and ADMINs to inspect the verification queue and approve or reject pending submissions; review outcomes publish `user.verification-reviewed` for notification handling.
 - Validates user IDs and request bodies with Zod; rejects missing users/verifications and attempts to review non-pending verifications.
 
 | Method | Path | Authorization | Description |
 |--------|------|---------------|-------------|
+| `GET` | `/api/users/verification` | Authenticated | Get own verification |
+| `POST` | `/api/users/verification` | Authenticated | Submit HTTPS student card/CCCD URL |
+| `GET` | `/api/users/verification/pending` | MODERATOR, ADMIN | List pending verifications |
+| `GET` | `/api/users/:userId/verification` | MODERATOR, ADMIN | Inspect a user's verification |
 | `PUT` | `/api/users/:userId/role` | ADMIN | Assign ADMIN or MODERATOR role |
 | `PUT` | `/api/users/:userId/verification/approve` | MODERATOR, ADMIN | Approve a pending student verification |
 | `PUT` | `/api/users/:userId/verification/reject` | MODERATOR, ADMIN | Reject a pending verification with a reason |
@@ -134,6 +141,34 @@ _Last updated: 2026-11-09_
 | `PUT` / `PATCH` | `/api/notifications/read-all` | Mark all notifications as read |
 | `DELETE` | `/api/notifications/:id` | Delete a notification |
 
-### Verification
-- `npm test` — 131 tests passed.
+## Report Module
+
+### Implementation (`src/modules/report/`)
+- **Status: ✅ Complete**
+- Creates report tickets with reporter/target IDs, reason category/note, context, and one to five HTTPS evidence URLs.
+- Prevents duplicate active reports for the same reporter, target, and context.
+- Provides moderator/admin queue listing, detail inspection, status transitions, and transactional processing history.
+- Publishes report events for reporter notifications.
+
+| Method | Path | Authorization | Description |
+|--------|------|---------------|-------------|
+| `POST` | `/api/reports` | Authenticated | Create a report ticket |
+| `GET` | `/api/reports` | MODERATOR, ADMIN | List/filter report queue |
+| `GET` | `/api/reports/:reportId` | MODERATOR, ADMIN | Get report details and history |
+| `PATCH` | `/api/reports/:reportId/status` | MODERATOR, ADMIN | Review and update report status |
+
+## CI/CD and Docker
+
+- `.github/workflows/backend-ci.yml` runs backend quality checks only when `backend/**` changes.
+- Pushes to `main` or `v*.*.*` tags publish the multistage backend image to `ghcr.io/<GHCR_USERNAME>/dating-app-backend`.
+- GHCR authentication uses the `GHCR_USERNAME` repository variable and `GHCR_TOKEN` secret.
+- A successful GHCR push triggers Render using `RENDER_DEPLOY_HOOK_URL`.
+- Docker runtime uses Node 22, Prisma-compatible OpenSSL, production dependencies, and a non-root user; migrations remain a separate deployment step.
+
+## Verification
+
+- `npm test` — 142 tests passed.
 - `npm run build` — passed.
+- `npm run prisma:validate` — passed.
+- `npm audit --omit=dev --omit=optional --audit-level=high` — 0 vulnerabilities.
+- Docker image build and runtime-content smoke check — passed.

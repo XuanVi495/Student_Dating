@@ -11,10 +11,12 @@
 2. [Error Format](#error-format)
 3. [Utility Endpoints](#utility-endpoints)
 4. [Profile Endpoints](#profile-endpoints)
-5. [Chat Endpoints](#chat-endpoints)
-6. [Notification Endpoints](#notification-endpoints)
-7. [User Endpoints](#user-endpoints)
-8. [Enum Reference](#enum-reference)
+5. [Media Endpoints](#media-endpoints)
+6. [Chat Endpoints](#chat-endpoints)
+7. [Notification Endpoints](#notification-endpoints)
+8. [User Endpoints](#user-endpoints)
+9. [Report Endpoints](#report-endpoints)
+10. [Enum Reference](#enum-reference)
 
 ---
 
@@ -390,6 +392,35 @@ List all globally available, active interest tags.
 
 ---
 
+## Media Endpoints
+
+All `/api/media` endpoints require `Authorization: Bearer <token>`. Media uploads use the private Supabase Storage bucket `media`; files are limited to 5 MB and `image/jpeg`, `image/png`, or `image/webp`.
+
+### `POST /api/media/upload-url`
+
+Request a one-time signed upload URL. The server generates a unique object path under the authenticated user's ID; clients cannot choose the bucket or path.
+
+**Request:**
+```json
+{ "contentType": "image/webp" }
+```
+
+**Response `200`:**
+```json
+{
+  "status": "success",
+  "data": {
+    "bucket": "media",
+    "path": "<authenticated-user-id>/<generated-id>.webp",
+    "signedUrl": "https://<project>.supabase.co/storage/v1/object/upload/sign/...",
+    "token": "<signed-upload-token>",
+    "expiresInSeconds": 7200
+  }
+}
+```
+
+Upload directly from the client with `supabase.storage.from(bucket).uploadToSignedUrl(path, token, file, { contentType })`.
+
 ## Chat Endpoints
 
 All endpoints require a valid Supabase access token. Realtime delivery, typing
@@ -720,6 +751,45 @@ Returns `404` if the notification does not exist or does not belong to the authe
 
 These endpoints require a valid Supabase access token. Each endpoint lists its required role.
 
+### `GET /api/users/verification`
+
+Returns the authenticated user's student verification record.
+
+### `POST /api/users/verification`
+
+Submit or resubmit a student card/CCCD image URL for moderator review. Only HTTPS URLs are accepted. Users with `DA_XAC_THUC` or an existing `CHO_DUYET` submission cannot submit again.
+
+**Request:**
+```json
+{ "cardUrl": "https://storage.example.edu/student-card/uuid.jpg" }
+```
+
+**Response `200`:**
+```json
+{
+  "status": "success",
+  "data": {
+    "studentId": "uuid",
+    "studentNumber": "24520001",
+    "universityName": "UIT",
+    "cardUrl": "https://storage.example.edu/student-card/uuid.jpg",
+    "status": "CHO_DUYET",
+    "reviewerId": null,
+    "rejectionReason": null,
+    "submittedAt": "2026-11-15T10:00:00.000Z",
+    "reviewedAt": null
+  }
+}
+```
+
+### `GET /api/users/verification/pending`
+
+Requires the `MODERATOR` or `ADMIN` role. Lists all student verification submissions waiting for review.
+
+### `GET /api/users/:userId/verification`
+
+Requires the `MODERATOR` or `ADMIN` role. Returns the verification record for a specific user.
+
 ### `PUT /api/users/:userId/role`
 
 Requires the `ADMIN` role. Assign or promote an existing user to `MODERATOR` or `ADMIN`. `userId` must be a UUID.
@@ -762,6 +832,98 @@ Rejection reason is required and cannot be blank. Both responses include the new
 
 ---
 
+## Report Endpoints
+
+All report endpoints require a valid Supabase access token. Creating a report is available to any authenticated user; queue, detail, and review endpoints require `MODERATOR` or `ADMIN`.
+
+### `POST /api/reports`
+
+Creates a report ticket for another user. A report contains the reporter, reported student, reason, optional context, and one to five HTTPS evidence URLs. Duplicate active reports with the same reporter, target, and context are rejected.
+
+**Request:**
+```json
+{
+  "reportedStudentId": "uuid",
+  "reasonCategory": "NOI_DUNG_KHONG_PHU_HOP",
+  "reasonNote": "The reported content violates the community rules.",
+  "context": {
+    "type": "MESSAGE",
+    "id": "uuid",
+    "metadata": {
+      "conversationId": "uuid"
+    }
+  },
+  "evidenceUrls": [
+    "https://storage.example.com/evidence/screenshot.png"
+  ]
+}
+```
+
+`context.type` may be `PROFILE`, `MESSAGE`, `CONVERSATION`, `INTERACTION`, `MATCH`, or `OTHER`. `reasonNote` and context are optional; evidence URLs must use HTTPS.
+
+**Response `201`:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "uuid",
+    "reporterId": "uuid",
+    "reportedStudentId": "uuid",
+    "reasonCategory": "NOI_DUNG_KHONG_PHU_HOP",
+    "reasonNote": "The reported content violates the community rules.",
+    "context": {
+      "type": "MESSAGE",
+      "id": "uuid",
+      "metadata": { "conversationId": "uuid" }
+    },
+    "status": "CHO_DUYET",
+    "createdAt": "2026-11-15T10:00:00.000Z",
+    "updatedAt": "2026-11-15T10:00:00.000Z",
+    "evidenceUrls": ["https://storage.example.com/evidence/screenshot.png"],
+    "history": []
+  }
+}
+```
+
+### `GET /api/reports`
+
+Requires the `MODERATOR` or `ADMIN` role. Lists report tickets with cursor pagination.
+
+**Query parameters:** `status` (optional), `limit` (1–100, default `20`), `cursor` (optional UUID).
+
+**Response `200`:**
+```json
+{
+  "status": "success",
+  "data": {
+    "items": [],
+    "nextCursor": null
+  }
+}
+```
+
+### `GET /api/reports/:reportId`
+
+Requires the `MODERATOR` or `ADMIN` role. Returns the report ticket, evidence URLs, and append-only processing history.
+
+### `PATCH /api/reports/:reportId/status`
+
+Requires the `MODERATOR` or `ADMIN` role. Updates the report status and writes a processing-history record containing the reviewer, previous/new status, timestamp, and optional decision/action/note.
+
+**Request:**
+```json
+{
+  "status": "DA_XU_LY",
+  "decision": "Violation confirmed.",
+  "action": "Account temporarily suspended.",
+  "note": "Evidence was reviewed and action was applied."
+}
+```
+
+Allowed statuses are `DANG_XU_LY`, `DA_XU_LY`, and `BAC_BO`. When status is `DA_XU_LY`, both `decision` and `action` are required. Reports transition transactionally with their history record.
+
+---
+
 ## Enum Reference
 
 | Enum | Values |
@@ -776,3 +938,5 @@ Rejection reason is required and cannot be blank. Both responses include the new
 | `NotificationType` | `GHEP_DOI`, `HUY_GHEP_DOI`, `TIN_NHAN_MOI`, `XAC_THUC_DUYET`, `XAC_THUC_TU_CHOI` |
 | `NotificationStatus` | `CHUA_DOC`, `DA_DOC` |
 | `UserRole` | `USER`, `MODERATOR`, `ADMIN` |
+| `ReportReasonCategory` | `QUAY_ROI`, `NOI_DUNG_KHONG_PHU_HOP`, `LUA_DAO`, `GIAO_MAO`, `SPAM`, `KHAC` |
+| `ReportStatus` | `CHO_DUYET`, `DANG_XU_LY`, `DA_XU_LY`, `BAC_BO` |

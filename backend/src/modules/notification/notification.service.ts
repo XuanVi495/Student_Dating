@@ -76,6 +76,12 @@ export interface NotificationService {
     status: 'DA_XAC_THUC' | 'TU_CHOI',
     rejectionReason?: string
   ): Promise<string>;
+  notifyVerificationSubmitted(studentId: string): Promise<string>;
+  notifyReportSubmitted(reporterId: string): Promise<string>;
+  notifyReportReviewed(
+    reporterId: string,
+    status: 'CHO_DUYET' | 'DANG_XU_LY' | 'DA_XU_LY' | 'BAC_BO'
+  ): Promise<string>;
   notifyNewMessage(
     conversationId: string,
     senderId: string,
@@ -217,6 +223,31 @@ export function createNotificationService(
     });
   }
 
+  async function notifyVerificationSubmitted(studentId: string): Promise<string> {
+    return createNotification({
+      type: NotificationType.XAC_THUC_CHO_DUYET,
+      recipientIds: [studentId],
+    });
+  }
+
+  async function notifyReportSubmitted(reporterId: string): Promise<string> {
+    return createNotification({
+      type: NotificationType.BAO_CAO_TIEP_NHAN,
+      recipientIds: [reporterId],
+    });
+  }
+
+  async function notifyReportReviewed(
+    reporterId: string,
+    status: 'CHO_DUYET' | 'DANG_XU_LY' | 'DA_XU_LY' | 'BAC_BO'
+  ): Promise<string> {
+    return createNotification({
+      type: NotificationType.BAO_CAO_CAP_NHAT,
+      recipientIds: [reporterId],
+      metadata: { status },
+    });
+  }
+
   async function notifyNewMessage(
     conversationId: string,
     senderId: string,
@@ -240,6 +271,9 @@ export function createNotificationService(
     notifyMatchCreated,
     notifyMatchCancelled,
     notifyVerificationReviewed,
+    notifyVerificationSubmitted,
+    notifyReportSubmitted,
+    notifyReportReviewed,
     notifyNewMessage,
   };
 }

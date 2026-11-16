@@ -26,6 +26,22 @@ enum VerificationStatus {
   TU_CHOI
 }
 
+enum ReportReasonCategory {
+  QUAY_ROI
+  NOI_DUNG_KHONG_PHU_HOP
+  LUA_DAO
+  GIA_MAO
+  SPAM
+  KHAC
+}
+
+enum ReportStatus {
+  CHO_DUYET
+  DANG_XU_LY
+  DA_XU_LY
+  BAC_BO
+}
+
 enum ProfileVisibility {
   CON_HOAT_DONG
   BI_AN
@@ -64,6 +80,9 @@ model Student {
   userRole               UserRoleAssignment?
   profile                Profile?
   verification           Verification?
+  reportsCreated         Report[]               @relation("ReportReporter")
+  reportsAgainst         Report[]               @relation("ReportReportedStudent")
+  reportReviews          ReportHistory[]        @relation("ReportReviewer")
   notificationsInitiated Notification[]          @relation("NotificationActor")
   notificationRecipients NotificationRecipient[]
 
@@ -98,7 +117,64 @@ model Verification {
 
   @@unique([universityName, studentNumber])
   @@index([reviewerId], map: "verifications_reviewer_id_idx")
+  @@index([status, submittedAt], map: "verifications_status_submitted_at_idx")
   @@map("verifications")
+}
+
+/// User-generated moderation ticket.
+model Report {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterId          String               @map("reporter_id") @db.Uuid
+  reportedStudentId   String               @map("reported_student_id") @db.Uuid
+  reasonCategory      ReportReasonCategory @map("reason_category")
+  reasonNote          String?              @map("reason_note")
+  context             Json                 @default("{}")
+  contextFingerprint  String               @map("context_fingerprint")
+  status              ReportStatus         @default(CHO_DUYET)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  reporter            Student              @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedStudent     Student              @relation("ReportReportedStudent", fields: [reportedStudentId], references: [id], onDelete: Cascade)
+  evidences           ReportEvidence[]
+  histories           ReportHistory[]
+
+  @@index([status, createdAt], map: "reports_status_created_at_idx")
+  @@index([reporterId, createdAt], map: "reports_reporter_created_at_idx")
+  @@index([reportedStudentId, createdAt], map: "reports_reported_student_created_at_idx")
+  @@index([contextFingerprint], map: "reports_context_fingerprint_idx")
+  @@map("reports")
+}
+
+/// Evidence URLs attached to a moderation ticket.
+model ReportEvidence {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId  String   @map("report_id") @db.Uuid
+  url       String
+  position  Int      @db.SmallInt
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, position], map: "report_evidences_report_position_uq")
+  @@map("report_evidences")
+}
+
+/// Append-only moderation history for a report.
+model ReportHistory {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId      String       @map("report_id") @db.Uuid
+  reviewerId    String       @map("reviewer_id") @db.Uuid
+  fromStatus    ReportStatus? @map("from_status")
+  toStatus      ReportStatus @map("to_status")
+  decision      String?
+  action        String?
+  note          String?
+  processedAt   DateTime     @default(now()) @map("processed_at") @db.Timestamptz
+  report        Report       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reviewer      Student      @relation("ReportReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@index([reportId, processedAt], map: "report_histories_report_processed_idx")
+  @@index([reviewerId, processedAt], map: "report_histories_reviewer_processed_idx")
+  @@map("report_histories")
 }
 
 /// Public profile for matching and interactions.
@@ -277,8 +353,11 @@ enum NotificationType {
   GHEP_DOI
   HUY_GHEP_DOI
   TIN_NHAN_MOI
+  XAC_THUC_CHO_DUYET
   XAC_THUC_DUYET
   XAC_THUC_TU_CHOI
+  BAO_CAO_TIEP_NHAN
+  BAO_CAO_CAP_NHAT
 }
 
 enum NotificationStatus {

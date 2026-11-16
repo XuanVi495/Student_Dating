@@ -42,11 +42,21 @@ Guarantees three architectural requirements:
 
 Provides endpoints to list notifications with cursor pagination, fetch unread badge counts, mark single or all notifications read, and dismiss individual inbox items.
 
+### `modules/user`
+
+Owns student verification submissions and administrative role management. Students submit HTTPS document URLs and receive a pending verification state; moderators and admins process the review queue and record reviewer, timestamps, and rejection reasons. Role assignment is restricted to admins, while verification review is restricted to moderators and admins.
+
+### `modules/report`
+
+Owns report-ticket creation and moderation workflow. Authenticated users create reports containing the reporter, reported student, category, optional note, context metadata, and HTTPS evidence URLs. Moderators and admins list/filter the queue, inspect report details, and transition active reports. Every review writes an append-only history record transactionally with the status change, including reviewer, timestamps, decision, action, and note.
+
 ### `shared/events`
 
 Provides the generic in-process `EventBus<Events>` (`publish`/`subscribe`) and shared event contracts:
 - `interaction.events.ts`: `interaction.like-created` published by Interaction; Matching subscribes to it to determine mutual matches.
 - `matching.events.ts`: `matching.match-created` and `matching.match-cancelled` published by Matching; Notification subscribes to it via `notification.listener.ts` to create persistent mutual notifications.
+- `user.events.ts`: verification submitted/reviewed events consumed by Notification.
+- `report.events.ts`: report submitted/reviewed events consumed by Notification.
 
 The shared layer transports events only and contains no business logic. Event delivery is process-local and non-durable: events can be lost on process failure and are not distributed across application instances. Both matching and notification listeners are initialized once during application startup.
 
@@ -59,6 +69,12 @@ The REST API remains the only message-write path. After a successful message tra
 ### Module activity logging
 
 Service action log messages use a source prefix and a concise operation plus outcome, for example `[Matching Service] Handle like created success` or `[Interaction Service] Like created success`. Failure messages use `failed`; structured metadata records the action and relevant actor/resource IDs, reason, and result counts. Logs exclude message bodies, verification rejection reasons, and profile field values.
+
+## CI/CD and container delivery
+
+The backend workflow in `.github/workflows/backend-ci.yml` runs quality checks only for pull requests or pushes that change `backend/**`. The quality job installs dependencies, runs tests, builds the backend, and audits production dependencies.
+
+On pushes to `main` or version tags beginning with `v`, the publish job builds the multistage `backend/Dockerfile` image and pushes `ghcr.io/<GHCR_USERNAME>/dating-app-backend`, authenticated with `GHCR_TOKEN`. The image is tagged with the commit SHA and `latest`. After a successful push, the workflow invokes Render through `RENDER_DEPLOY_HOOK_URL`. Database migrations are intentionally not run during image startup.
 
 ---
 
